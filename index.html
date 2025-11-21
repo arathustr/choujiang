@@ -96,10 +96,15 @@
 
     <script>
         // ================= 配置区域 =================
-        // ⚠️⚠️⚠️ 请在这里替换为你 GitHub 上的 raw 图片链接 ⚠️⚠️⚠️
-        // 建议：使用看起来有点冲击力但不要太恐怖的照片
-        // 如果你还没上传，可以暂时用这个测试图：https://placekitten.com/800/800 
+        
+        // 1. 图片链接 (保持你之前的修改)
         const PRANK_IMAGE_URL = "https://arathustr.github.io/choujiang/main.png"; 
+        
+        // 2. ⚠️⚠️⚠️ 音效链接 ⚠️⚠️⚠️
+        // 这里放一个尖叫声的mp3链接。你可以去网易云音乐或素材库找一个，上传到GitHub获取raw链接
+        // 下面这是一个通用的女性尖叫声示例
+        const PRANK_SOUND_URL = "https://www.myinstants.com/media/sounds/scream_1.mp3";
+        
         // ===========================================
 
         const canvas = document.getElementById('wheelCanvas');
@@ -108,10 +113,14 @@
         const prankOverlay = document.getElementById('prank-overlay');
         const prankImg = document.getElementById('prank-image');
 
-        // 预加载图片，防止显示时卡顿
+        // 预加载图片
         const preloadImg = new Image();
         preloadImg.src = PRANK_IMAGE_URL;
         prankImg.src = PRANK_IMAGE_URL;
+
+        // 预加载音频
+        const screamAudio = new Audio(PRANK_SOUND_URL);
+        screamAudio.preload = 'auto'; // 尝试自动预加载
 
         const prizes = [
             "iPhone 15", "谢谢参与", "100元红包", "再接再厉", 
@@ -123,7 +132,7 @@
         const arc = Math.PI / (prizes.length / 2);
         let spinTimeout = null;
         
-        // 绘制转盘
+        // 绘制转盘 (保持不变)
         function drawRouletteWheel() {
             const outsideRadius = 190;
             const textRadius = 150;
@@ -168,8 +177,7 @@
                 return;
             }
             
-            // 缓动算法
-            const spinAngle = spinAngleStart - (spinAngleStart * (spinTime / spinTimeTotal)); // 减速
+            const spinAngle = spinAngleStart - (spinAngleStart * (spinTime / spinTimeTotal)); 
             startAngle += (spinAngle * Math.PI / 180);
             drawRouletteWheel();
             spinTimeout = requestAnimationFrame(rotateWheel);
@@ -178,21 +186,24 @@
         function stopRotateWheel() {
             cancelAnimationFrame(spinTimeout);
             
-            // ❗❗❗ 核心：停止时触发恶作剧 ❗❗❗
-            // 稍微延迟 300 毫秒，让用户以为要出结果了，心理防线最低的时候
+            // 稍微延迟 300 毫秒，心理防线最低的时候
             setTimeout(() => {
                 triggerPrank();
             }, 300);
         }
 
         function triggerPrank() {
-            // 震动效果 + 显示图片
+            // 播放尖叫音效 (因为之前解锁过，这里会立即播放)
+            screamAudio.currentTime = 0;
+            screamAudio.play().catch(e => console.log("Audio play failed:", e));
+
+            // 震动效果
             if (navigator.vibrate) {
-                navigator.vibrate([100, 50, 100, 50, 100]); // 手机震动
+                navigator.vibrate([100, 50, 100, 50, 100, 50, 200]); // 震动变得更剧烈一点
             }
+            
             prankOverlay.style.display = 'flex';
             
-            // 全屏模式 (可选，增加沉浸感)
             try {
                 if (document.documentElement.requestFullscreen) {
                     document.documentElement.requestFullscreen();
@@ -203,14 +214,23 @@
         }
 
         spinBtn.addEventListener('click', () => {
-            // 禁用按钮，防止重复点击
+            // ❗❗❗ 关键步骤：音频解锁 ❗❗❗
+            // 用户点击按钮是“用户交互”，此时播放音频是合法的。
+            // 我们播放一下立即暂停，这样浏览器就把这个音频标记为“已授权”，
+            // 之后在代码里自动播放就不会被拦截了。
+            screamAudio.play().then(() => {
+                screamAudio.pause();
+                screamAudio.currentTime = 0;
+            }).catch(error => {
+                console.log("Audio autoplay permission waiting...");
+            });
+
+            // 禁用按钮
             spinBtn.disabled = true;
             spinBtn.classList.add('opacity-50', 'cursor-not-allowed');
             
             spinTime = 0;
-            // 旋转时间：5到6秒之间，足够建立期待感
             spinTimeTotal = (Math.random() * 1000) + 5000; 
-            // 初始旋转速度
             spinAngleStart = Math.random() * 10 + 20; 
             
             rotateWheel();
