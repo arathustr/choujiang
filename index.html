@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>年终福利大抽奖 - 100%中奖</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 99%, #fad0c4 100%);
+            overflow: hidden; /* 防止出现滚动条 */
+        }
+
+        /* 转盘指针 */
+        .arrow-down {
+            width: 0; 
+            height: 0; 
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-top: 40px solid #FF5252;
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+        }
+
+        /* 恶作剧全屏覆盖层 */
+        #prank-overlay {
+            display: none; /* 默认隐藏 */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: black;
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        #prank-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain; /* 保持图片比例，最大化显示 */
+        }
+
+        /* 震动动画，增加惊吓效果 */
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col items-center justify-center">
+
+    <!-- 伪装的标题 -->
+    <div class="text-center mb-8 animate-pulse">
+        <h1 class="text-3xl md:text-5xl font-bold text-red-600 drop-shadow-md">🎉 幸运大转盘 🎉</h1>
+        <p class="text-gray-700 mt-2 text-sm md:text-base">每日一次免费机会，赢取 iPhone 15 Pro！</p>
+    </div>
+
+    <!-- 转盘容器 -->
+    <div class="relative w-[300px] h-[300px] md:w-[400px] md:h-[400px]">
+        <!-- 指针 -->
+        <div class="arrow-down"></div>
+        
+        <!-- 转盘 Canvas -->
+        <canvas id="wheelCanvas" width="400" height="400" class="w-full h-full transition-transform duration-0 ease-out rounded-full shadow-2xl border-4 border-white"></canvas>
+        
+        <!-- 中心按钮 -->
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white p-2 rounded-full shadow-lg z-20">
+            <button id="spinBtn" class="w-16 h-16 md:w-20 md:h-20 rounded-full bg-red-500 text-white font-bold text-lg shadow-inner border-4 border-red-600 active:scale-95 transition-transform">
+                抽奖
+            </button>
+        </div>
+    </div>
+
+    <!-- 底部提示，增加真实感 -->
+    <div class="mt-10 text-center text-gray-600 text-xs md:text-sm max-w-md px-4">
+        <p>已有 <span class="text-red-500 font-bold">3,421</span> 人中奖</p>
+        <p class="mt-1">本活动最终解释权归主办方所有</p>
+    </div>
+
+    <!-- 恶作剧图层 -->
+    <div id="prank-overlay">
+        <img id="prank-image" src="" alt="Surprise!">
+    </div>
+
+    <script>
+        // ================= 配置区域 =================
+        // ⚠️⚠️⚠️ 请在这里替换为你 GitHub 上的 raw 图片链接 ⚠️⚠️⚠️
+        // 建议：使用看起来有点冲击力但不要太恐怖的照片
+        // 如果你还没上传，可以暂时用这个测试图：https://placekitten.com/800/800 
+        const PRANK_IMAGE_URL = "https://upload.wikimedia.org/wikipedia/commons/8/85/Smiley.svg"; 
+        // ===========================================
+
+        const canvas = document.getElementById('wheelCanvas');
+        const ctx = canvas.getContext('2d');
+        const spinBtn = document.getElementById('spinBtn');
+        const prankOverlay = document.getElementById('prank-overlay');
+        const prankImg = document.getElementById('prank-image');
+
+        // 预加载图片，防止显示时卡顿
+        const preloadImg = new Image();
+        preloadImg.src = PRANK_IMAGE_URL;
+        prankImg.src = PRANK_IMAGE_URL;
+
+        const prizes = [
+            "iPhone 15", "谢谢参与", "100元红包", "再接再厉", 
+            "神秘大奖", "运气爆棚", "iPad Air", "下次一定"
+        ];
+        const colors = ["#FFD700", "#FFFFFF", "#FFD700", "#FFFFFF", "#FFD700", "#FFFFFF", "#FFD700", "#FFFFFF"];
+        
+        let startAngle = 0;
+        const arc = Math.PI / (prizes.length / 2);
+        let spinTimeout = null;
+        
+        // 绘制转盘
+        function drawRouletteWheel() {
+            const outsideRadius = 190;
+            const textRadius = 150;
+            const insideRadius = 40;
+
+            ctx.clearRect(0,0,400,400);
+
+            for(let i = 0; i < prizes.length; i++) {
+                const angle = startAngle + i * arc;
+                
+                ctx.fillStyle = colors[i];
+                ctx.beginPath();
+                ctx.arc(200, 200, outsideRadius, angle, angle + arc, false);
+                ctx.arc(200, 200, insideRadius, angle + arc, angle, true);
+                ctx.stroke();
+                ctx.fill();
+
+                ctx.save();
+                ctx.shadowOffsetX = -1;
+                ctx.shadowOffsetY = -1;
+                ctx.shadowBlur    = 0;
+                ctx.fillStyle = "#E53935";
+                ctx.translate(200 + Math.cos(angle + arc / 2) * textRadius, 
+                              200 + Math.sin(angle + arc / 2) * textRadius);
+                ctx.rotate(angle + arc / 2 + Math.PI / 2);
+                const text = prizes[i];
+                ctx.font = 'bold 18px sans-serif';
+                ctx.fillText(text, -ctx.measureText(text).width / 2, 0);
+                ctx.restore();
+            } 
+        }
+
+        // 旋转逻辑
+        let spinAngleStart = 10;
+        let spinTime = 0;
+        let spinTimeTotal = 0;
+        
+        function rotateWheel() {
+            spinTime += 30;
+            if(spinTime >= spinTimeTotal) {
+                stopRotateWheel();
+                return;
+            }
+            
+            // 缓动算法
+            const spinAngle = spinAngleStart - (spinAngleStart * (spinTime / spinTimeTotal)); // 减速
+            startAngle += (spinAngle * Math.PI / 180);
+            drawRouletteWheel();
+            spinTimeout = requestAnimationFrame(rotateWheel);
+        }
+
+        function stopRotateWheel() {
+            cancelAnimationFrame(spinTimeout);
+            
+            // ❗❗❗ 核心：停止时触发恶作剧 ❗❗❗
+            // 稍微延迟 300 毫秒，让用户以为要出结果了，心理防线最低的时候
+            setTimeout(() => {
+                triggerPrank();
+            }, 300);
+        }
+
+        function triggerPrank() {
+            // 震动效果 + 显示图片
+            if (navigator.vibrate) {
+                navigator.vibrate([100, 50, 100, 50, 100]); // 手机震动
+            }
+            prankOverlay.style.display = 'flex';
+            
+            // 全屏模式 (可选，增加沉浸感)
+            try {
+                if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen();
+                }
+            } catch(e) {
+                console.log("Fullscreen not supported or blocked");
+            }
+        }
+
+        spinBtn.addEventListener('click', () => {
+            // 禁用按钮，防止重复点击
+            spinBtn.disabled = true;
+            spinBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            
+            spinTime = 0;
+            // 旋转时间：5到6秒之间，足够建立期待感
+            spinTimeTotal = (Math.random() * 1000) + 5000; 
+            // 初始旋转速度
+            spinAngleStart = Math.random() * 10 + 20; 
+            
+            rotateWheel();
+        });
+
+        // 初始化绘制
+        drawRouletteWheel();
+
+    </script>
+</body>
+</html>
